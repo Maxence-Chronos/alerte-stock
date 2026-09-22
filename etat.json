@@ -8,5 +8,25 @@
     "statut": "rupture",
     "erreurs": 0,
     "alerte_erreur": false
+  },
+  "https://hikarudistribution.com/products/upc-mentali-collection-ultra-premium-30eme-anniversaire-francais": {
+    "statut": "rupture",
+    "erreurs": 0,
+    "alerte_erreur": false
+  },
+  "https://hikarudistribution.com/products/upc-noctali-collection-ultra-premium-30eme-anniversaire-francais": {
+    "statut": "rupture",
+    "erreurs": 0,
+    "alerte_erreur": false
+  },
+  "https://vcollect.fr/products/upc-noctali-30e-anniversaire-francais": {
+    "statut": "rupture",
+    "erreurs": 0,
+    "alerte_erreur": false
+  },
+  "https://vcollect.fr/products/upc-mentali-30e-anniversaire-francais": {
+    "statut": "rupture",
+    "erreurs": 0,
+    "alerte_erreur": false
   }
 }
