@@ -14,18 +14,44 @@ import urllib.request
 
 # ---------------------------------------------------------------
 # PRODUITS À SURVEILLER : ajoute ou retire des blocs ici.
+# "site" = "playin" ou "shopify" (boutiques dont l'adresse contient /products/)
 # "mot_cle" = un mot du nom du produit, pour vérifier que la page
 # s'est bien chargée (et pas une page de blocage).
 # ---------------------------------------------------------------
 PRODUITS = [
     {
-        "nom": "UPC Pokémon 30 ans - Soirée Noctali",
+        "nom": "Play-in - UPC Noctali",
+        "site": "playin",
         "url": "https://www.play-in.com/fr/produit/659645/coffret-collection-ultra-premium-pokemon-30-ans-soiree-noctali-fr",
         "mot_cle": "Noctali",
     },
     {
-        "nom": "UPC Pokémon 30 ans - Journée Mentali",
+        "nom": "Play-in - UPC Mentali",
+        "site": "playin",
         "url": "https://www.play-in.com/fr/produit/659644/coffret-collection-ultra-premium-pokemon-30-ans-journee-mentali-fr",
+        "mot_cle": "Mentali",
+    },
+    {
+        "nom": "Hikaru - UPC Mentali",
+        "site": "shopify",
+        "url": "https://hikarudistribution.com/products/upc-mentali-collection-ultra-premium-30eme-anniversaire-francais",
+        "mot_cle": "Mentali",
+    },
+    {
+        "nom": "Hikaru - UPC Noctali",
+        "site": "shopify",
+        "url": "https://hikarudistribution.com/products/upc-noctali-collection-ultra-premium-30eme-anniversaire-francais",
+        "mot_cle": "Noctali",
+    },    {
+        "nom": "VCOLLECT - UPC Noctali",
+        "site": "shopify",
+        "url": "https://vcollect.fr/products/upc-noctali-30e-anniversaire-francais",
+        "mot_cle": "Noctali",
+    },
+    {
+        "nom": "VCOLLECT - UPC Mentali",
+        "site": "shopify",
+        "url": "https://vcollect.fr/products/upc-mentali-30e-anniversaire-francais",
         "mot_cle": "Mentali",
     },
 ]
@@ -39,7 +65,7 @@ FICHIER_ETAT = "etat.json"
 HEADERS = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                    "(KHTML, like Gecko) Chrome/128.0 Safari/537.36"),
-    "Accept": "text/html,application/xhtml+xml",
+    "Accept": "text/html,application/xhtml+xml,application/json",
     "Accept-Language": "fr-FR,fr;q=0.9",
 }
 
@@ -63,8 +89,27 @@ def telecharger(url):
     return None
 
 
+def statut_shopify(p):
+    """Boutiques Shopify : lit la fiche produit en JSON (champ « available »)."""
+    brut = telecharger(p["url"].split("?")[0].rstrip("/") + ".js")
+    if brut is None:
+        return "erreur"
+    try:
+        data = json.loads(brut)
+    except ValueError:
+        print("  Réponse illisible (blocage anti-bot ?)")
+        return "erreur"
+    if p["mot_cle"].lower() not in str(data.get("title", "")).lower():
+        print("  Produit introuvable dans la réponse")
+        return "erreur"
+    print(f"  available = {data.get('available')}")
+    return "dispo" if data.get("available") else "rupture"
+
+
 def statut_produit(p):
     """Renvoie 'dispo', 'rupture' ou 'erreur'."""
+    if p.get("site") == "shopify":
+        return statut_shopify(p)
     page = telecharger(p["url"])
     if page is None:
         return "erreur"
@@ -128,7 +173,7 @@ def main():
                 messages.append(f"✅ Le bot relit à nouveau la page de {p['nom']}.")
             e["erreurs"], e["alerte_erreur"] = 0, False
             if statut == "dispo" and e["statut"] != "dispo":
-                messages.append(f"🟢 DISPO sur Play-in : {p['nom']}\nFonce : {p['url']}")
+                messages.append(f"🟢 DISPO : {p['nom']}\nFonce : {p['url']}")
                 nouveau_dispo = True
             elif statut == "rupture" and e["statut"] == "dispo":
                 messages.append(f"🔴 De nouveau en rupture : {p['nom']}")
