@@ -3,7 +3,10 @@
 Surveillance de stock Play-in -> alerte WhatsApp via CallMeBot.
 Lancé automatiquement par GitHub Actions (voir .github/workflows/surveillance.yml).
 """
+import gzip
 import html
+import http.cookiejar
+import io
 import json
 import os
 import re
@@ -42,7 +45,8 @@ PRODUITS = [
         "site": "shopify",
         "url": "https://hikarudistribution.com/products/upc-noctali-collection-ultra-premium-30eme-anniversaire-francais",
         "mot_cle": "Noctali",
-    },    {
+    },
+    {
         "nom": "VCOLLECT - UPC Noctali",
         "site": "shopify",
         "url": "https://vcollect.fr/products/upc-noctali-30e-anniversaire-francais",
@@ -54,20 +58,56 @@ PRODUITS = [
         "url": "https://vcollect.fr/products/upc-mentali-30e-anniversaire-francais",
         "mot_cle": "Mentali",
     },
+    {
+        "nom": "DestockTCG - UPC Noctali",
+        "site": "destocktcg",
+        "url": "https://www.destocktcg.fr/product/30e-anniversaire-coffret-ultra-premium-soiree-noctali-ex-pokemon-fr-1761",
+        "mot_cle": "Noctali",
+    },
+    {
+        "nom": "DestockTCG - UPC Mentali",
+        "site": "destocktcg",
+        "url": "https://www.destocktcg.fr/product/30e-anniversaire-coffret-ultra-premium-journee-mentali-ex-pokemon-fr-1760",
+        "mot_cle": "Mentali",
+    },
 ]
 
-# Mention affichée par Play-in quand le produit n'est pas commandable
-# en ligne (ex. « Rupture temporaire en livraison »).
-RUPTURE = re.compile(r"(rupture|épuisé)[^.]{0,40}?(livraison|stock)", re.IGNORECASE)
+# Mention qui signifie « pas encore commandable », selon la boutique
+REGLES = {
+    # Play-in : « Rupture temporaire en livraison »
+    "playin": re.compile(r"(rupture|épuisé)[^.]{0,40}?(livraison|stock)", re.IGNORECASE),
+    # DestockTCG : tant que le prix n'est pas affiché, les précommandes sont fermées
+    "destocktcg": re.compile(r"prix à venir", re.IGNORECASE),
+}
 
 ERREURS_AVANT_ALERTE = 3  # ~15 min de pages illisibles avant de te prévenir
 FICHIER_ETAT = "etat.json"
 HEADERS = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-                   "(KHTML, like Gecko) Chrome/128.0 Safari/537.36"),
-    "Accept": "text/html,application/xhtml+xml,application/json",
-    "Accept-Language": "fr-FR,fr;q=0.9",
+                   "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"),
+    "Accept": ("text/html,application/xhtml+xml,application/xml;q=0.9,"
+               "image/avif,image/webp,*/*;q=0.8"),
+    "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7",
+    "Accept-Encoding": "gzip, deflate",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "sec-ch-ua": '"Chromium";v="140", "Not=A?Brand";v="24", "Google Chrome";v="140"',
+    "sec-ch-ua-mobile": "?0",
+    "sec-ch-ua-platform": '"Windows"',
+    "Connection": "keep-alive",
 }
+
+# Session qui conserve les cookies, comme un vrai navigateur
+SESSION = urllib.request.build_opener(
+    urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+
+
+def cle(p):
+    """Identifiant unique d'un produit (une même page peut avoir 2 variantes)."""
+    return p["url"] + ("#" + p["variante"] if p.get("variante") else "")
 
 
 def texte_visible(page_html):
@@ -81,8 +121,11 @@ def telecharger(url):
     for essai in range(2):
         try:
             req = urllib.request.Request(url, headers=HEADERS)
-            with urllib.request.urlopen(req, timeout=30) as r:
-                return r.read().decode("utf-8", errors="replace")
+            with SESSION.open(req, timeout=30) as r:
+                brut = r.read()
+                if r.headers.get("Content-Encoding") == "gzip":
+                    brut = gzip.GzipFile(fileobj=io.BytesIO(brut)).read()
+            return brut.decode("utf-8", errors="replace")
         except Exception as e:
             print(f"  Essai {essai + 1} échoué : {e}")
             time.sleep(5)
@@ -102,6 +145,13 @@ def statut_shopify(p):
     if p["mot_cle"].lower() not in str(data.get("title", "")).lower():
         print("  Produit introuvable dans la réponse")
         return "erreur"
+    if p.get("variante"):
+        for v in data.get("variants", []):
+            if p["variante"].lower() in str(v.get("title", "")).lower():
+                print(f"  variante {v.get('title')} : available = {v.get('available')}")
+                return "dispo" if v.get("available") else "rupture"
+        print("  Variante introuvable dans la réponse")
+        return "erreur"
     print(f"  available = {data.get('available')}")
     return "dispo" if data.get("available") else "rupture"
 
@@ -117,12 +167,30 @@ def statut_produit(p):
     if p["mot_cle"].lower() not in texte.lower():
         print("  Page chargée mais produit introuvable (blocage anti-bot ?)")
         return "erreur"
-    m = RUPTURE.search(texte)
+    regle = REGLES.get(p.get("site"), REGLES["playin"])
+    m = regle.search(texte)
     if m:
         print(f"  Mention trouvée : « {m.group(0)} »")
         return "rupture"
     print("  Aucune mention de rupture trouvée")
     return "dispo"
+
+
+def envoyer_ntfy(titre, message, lien=None):
+    """Notification instantanée sur le téléphone (sujet dans le secret NTFY_TOPIC)."""
+    sujet = os.environ.get("NTFY_TOPIC", "").strip()
+    if not sujet:
+        return
+    entetes = {"Title": titre.encode("utf-8"), "Priority": "urgent", "Tags": "rotating_light"}
+    if lien:
+        entetes["Click"] = lien
+    req = urllib.request.Request(f"https://ntfy.sh/{sujet}",
+                                 data=message.encode("utf-8"), headers=entetes)
+    try:
+        urllib.request.urlopen(req, timeout=15)
+        print("Notification ntfy envoyée.")
+    except Exception as e:
+        print(f"Notification ntfy ratée : {e}")
 
 
 def envoyer_whatsapp(message):
@@ -160,7 +228,7 @@ def main():
         print(f"Vérification : {p['nom']}")
         statut = statut_produit(p)
         print(f"  -> {statut}")
-        e = etat.get(p["url"], {"statut": None, "erreurs": 0, "alerte_erreur": False})
+        e = etat.get(cle(p), {"statut": None, "erreurs": 0, "alerte_erreur": False})
 
         if statut == "erreur":
             e["erreurs"] += 1
@@ -173,18 +241,20 @@ def main():
                 messages.append(f"✅ Le bot relit à nouveau la page de {p['nom']}.")
             e["erreurs"], e["alerte_erreur"] = 0, False
             if statut == "dispo" and e["statut"] != "dispo":
+                envoyer_ntfy(f"DISPO : {p['nom']}", "Fonce commander !", p["url"])
                 messages.append(f"🟢 DISPO : {p['nom']}\nFonce : {p['url']}")
                 nouveau_dispo = True
             elif statut == "rupture" and e["statut"] == "dispo":
                 messages.append(f"🔴 De nouveau en rupture : {p['nom']}")
             e["statut"] = statut
 
-        etat[p["url"]] = e
+        etat[cle(p)] = e
         icone = {"dispo": "🟢 dispo", "rupture": "🔴 rupture", "erreur": "⚠️ page illisible"}[statut]
         resume.append(f"{p['nom']} : {icone}")
 
     if test:
         messages.insert(0, "🧪 Test du bot de surveillance\n" + "\n".join(resume))
+        envoyer_ntfy("Test du bot GitHub", "\n".join(resume))
 
     with open(FICHIER_ETAT, "w", encoding="utf-8") as f:
         json.dump(etat, f, ensure_ascii=False, indent=2)
