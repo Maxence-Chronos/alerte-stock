@@ -31,12 +31,12 @@
   },
   "https://www.destocktcg.fr/product/30e-anniversaire-coffret-ultra-premium-soiree-noctali-ex-pokemon-fr-1761": {
     "statut": null,
-    "erreurs": 11,
+    "erreurs": 12,
     "alerte_erreur": true
   },
   "https://www.destocktcg.fr/product/30e-anniversaire-coffret-ultra-premium-journee-mentali-ex-pokemon-fr-1760": {
     "statut": null,
-    "erreurs": 11,
+    "erreurs": 12,
     "alerte_erreur": true
   }
 }
