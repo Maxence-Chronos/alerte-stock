@@ -58,26 +58,14 @@ PRODUITS = [
         "url": "https://vcollect.fr/products/upc-mentali-30e-anniversaire-francais",
         "mot_cle": "Mentali",
     },
-    {
-        "nom": "DestockTCG - UPC Noctali",
-        "site": "destocktcg",
-        "url": "https://www.destocktcg.fr/product/30e-anniversaire-coffret-ultra-premium-soiree-noctali-ex-pokemon-fr-1761",
-        "mot_cle": "Noctali",
-    },
-    {
-        "nom": "DestockTCG - UPC Mentali",
-        "site": "destocktcg",
-        "url": "https://www.destocktcg.fr/product/30e-anniversaire-coffret-ultra-premium-journee-mentali-ex-pokemon-fr-1760",
-        "mot_cle": "Mentali",
-    },
 ]
 
 # Mention qui signifie « pas encore commandable », selon la boutique
 REGLES = {
     # Play-in : « Rupture temporaire en livraison »
     "playin": re.compile(r"(rupture|épuisé)[^.]{0,40}?(livraison|stock)", re.IGNORECASE),
-    # DestockTCG : tant que le prix n'est pas affiché, les précommandes sont fermées
-    "destocktcg": re.compile(r"prix à venir", re.IGNORECASE),
+    # Pour une autre boutique : tant que le prix n'est pas affiché, c'est fermé
+    "prix_absent": re.compile(r"prix à venir", re.IGNORECASE),
 }
 
 ERREURS_AVANT_ALERTE = 3  # ~15 min de pages illisibles avant de te prévenir
