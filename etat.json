@@ -1,7 +1,7 @@
 {
   "https://www.play-in.com/fr/produit/659645/coffret-collection-ultra-premium-pokemon-30-ans-soiree-noctali-fr": {
     "statut": "rupture",
-    "erreurs": 74,
+    "erreurs": 75,
     "alerte_erreur": true
   },
   "https://www.play-in.com/fr/produit/659644/coffret-collection-ultra-premium-pokemon-30-ans-journee-mentali-fr": {
@@ -11,17 +11,17 @@
   },
   "https://hikarudistribution.com/products/upc-mentali-collection-ultra-premium-30eme-anniversaire-francais": {
     "statut": "rupture",
-    "erreurs": 0,
+    "erreurs": 1,
     "alerte_erreur": false
   },
   "https://hikarudistribution.com/products/upc-noctali-collection-ultra-premium-30eme-anniversaire-francais": {
     "statut": "rupture",
-    "erreurs": 0,
+    "erreurs": 1,
     "alerte_erreur": false
   },
   "https://vcollect.fr/products/upc-noctali-30e-anniversaire-francais": {
     "statut": "rupture",
-    "erreurs": 0,
+    "erreurs": 1,
     "alerte_erreur": false
   },
   "https://vcollect.fr/products/upc-mentali-30e-anniversaire-francais": {
